@@ -57,4 +57,28 @@ func main() {
 	}
 
 	log.Println("sum of all distances: ", distSum)
+
+	// **
+	// Part 2
+	// **
+
+	similarityScores := make([]int, len(list1))
+	// compute similarity scores
+	for i, number := range list1 {
+		presentInList2 := 0
+		for _, number2 := range list2 {
+			if number2 == number {
+				presentInList2++
+			}
+		}
+		similarityScores[i] = number * presentInList2
+	}
+
+	// return sum of all similarity scores
+	var simSum int
+	for _, v := range similarityScores {
+		simSum += v
+	}
+
+	log.Println("sum of all similarity scores: ", simSum)
 }
