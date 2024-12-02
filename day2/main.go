@@ -1,12 +1,29 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"math"
 	"os"
 	"strconv"
 	"strings"
 )
+
+func removeItem(report []int, position int) []int {
+	ret := make([]int, 0)
+	ret = append(ret, report[:position]...)
+	ret = append(ret, report[position+1:]...)
+	return ret
+}
+
+// generateCombinations from s by removing once every possible item in the list
+func generateCombinations(s []int) [][]int {
+	combinations := make([][]int, 0)
+	for i := 0; i < len(s); i++ {
+		combinations = append(combinations, removeItem(s, i))
+	}
+	return combinations
+}
 
 func main() {
 	raw, err := os.ReadFile("./input.txt")
@@ -22,11 +39,21 @@ func main() {
 		for i, e := range lineExpl {
 			report[i], _ = strconv.Atoi(e)
 		}
-
+		log.Println("original:", line)
 		if isSafe(report) {
-			log.Println(line)
+			log.Println("safe")
 			safeCount++
+		} else {
+			log.Println("check combinations:")
+			for _, combination := range generateCombinations(report) {
+				if isSafe(combination) {
+					log.Println(combination, "safe")
+					safeCount++
+					break
+				}
+			}
 		}
+		fmt.Println("")
 	}
 
 	log.Printf("Safe: %d\n", safeCount)
@@ -44,7 +71,6 @@ func isSafe(report []int) bool {
 		direction = "decr"
 	}
 	if direction == "" {
-		// 2 first number are identical
 		return false
 	}
 
