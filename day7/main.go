@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"math"
+	"math/big"
 	"os"
 	"strconv"
 	"strings"
@@ -35,24 +36,26 @@ func getInputEquations(raw string) []InputEquations {
 	return eqs
 }
 
-var operators = []rune{'+', '*'}
+var operators = []rune{'+', '*', 'c'} // c for concatenation ||
 
 func generateOperatorCombinations(testValueCpt int) [][]rune {
 	// (n*operators)^(testValueCpt-1) possibilities
 	// 2^(testValueCpt-1)
 	opCombinations := make([][]rune, 0)
-	combinationCount := int(math.Pow(2, float64(testValueCpt-1)))
-	format := "%." + strconv.Itoa(testValueCpt-1) + "b"
+	combinationCount := int(math.Pow(float64(len(operators)), float64(testValueCpt-1)))
 
 	for i := 0; i < combinationCount; i++ {
-		bin := fmt.Sprintf(format, i)
+		inBaseX := big.NewInt(int64(i)).Text(len(operators))
+		padding := strings.Repeat("0", testValueCpt-1-len(inBaseX))
+		inBaseX = padding + inBaseX
+
 		var combination []rune
-		for _, bit := range bin {
-			sBit, err := strconv.Atoi(string(bit))
+		for _, r := range inBaseX {
+			s, err := strconv.Atoi(string(r))
 			if err != nil {
 				panic(err)
 			}
-			combination = append(combination, operators[sBit])
+			combination = append(combination, operators[s])
 		}
 		opCombinations = append(opCombinations, combination)
 	}
@@ -69,6 +72,12 @@ func isSolvableEquation(eq InputEquations) bool {
 				combResult += eq.testValues[i]
 			case '*':
 				combResult *= eq.testValues[i]
+			case 'c':
+				r, err := strconv.Atoi(strconv.Itoa(combResult) + strconv.Itoa(eq.testValues[i]))
+				if err != nil {
+					panic(err)
+				}
+				combResult = r
 			}
 		}
 		if combResult == eq.result {
