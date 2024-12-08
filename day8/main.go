@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"slices"
@@ -77,17 +78,69 @@ func getAntennaPairs(groups AntennaGroups) AntennaPairs {
 
 // using midpoint formula in reverse
 // given (x1,y1), (x2,y2), (xm,ym) : x2 = 2*xm - x1 ; y2 = 2*ym - y1
-func getAntiNodes(pairs AntennaPairs) [][2]int {
+func getPoint(x1, y1, xm, ym, maxX, maxY int) ([2]int, error) {
+	x2 := 2*xm - x1
+	y2 := 2*ym - y1
+
+	var err error
+	// check boundaries
+	if x2 > maxX || x2 < 0 || y2 < 0 || y2 > maxY {
+		err = errors.New("oob")
+	}
+
+	return [2]int{x2, y2}, err
+}
+
+func getAntiNodesAndHarmonics(pairs AntennaPairs, maxX, maxY int) [][2]int {
 	var antiNodes [][2]int
+
+	// pair direction
 	for _, pair := range pairs {
-		// pair direction
-		x2 := 2*pair[1].x - pair[0].x
-		y2 := 2*pair[1].y - pair[0].y
-		antiNodes = append(antiNodes, [2]int{x2, y2})
-		// inverse
-		x2 = 2*pair[0].x - pair[1].x
-		y2 = 2*pair[0].y - pair[1].y
-		antiNodes = append(antiNodes, [2]int{x2, y2})
+		// the pair themselves are harmonics
+		antiNodes = append(antiNodes, [2]int{pair[0].x, pair[0].y})
+		antiNodes = append(antiNodes, [2]int{pair[1].x, pair[1].y})
+
+		coords, err := getPoint(pair[1].x, pair[1].y, pair[0].x, pair[0].y, maxX, maxY)
+		if err != nil {
+			continue
+		}
+		antiNodes = append(antiNodes, coords)
+
+		// harmonics
+		one := [2]int{pair[0].x, pair[0].y}
+		m := coords
+		for err == nil {
+			coords, err = getPoint(one[0], one[1], m[0], m[1], maxX, maxY)
+			if err != nil {
+				continue
+			}
+
+			antiNodes = append(antiNodes, coords)
+			one = m
+			m = coords
+		}
+	}
+	// inverse
+	for _, pair := range pairs {
+		coords, err := getPoint(pair[0].x, pair[0].y, pair[1].x, pair[1].y, maxX, maxY)
+		if err != nil {
+			continue
+		}
+		antiNodes = append(antiNodes, coords)
+
+		// harmonics
+		one := [2]int{pair[1].x, pair[1].y}
+		m := coords
+		for err == nil {
+			coords, err = getPoint(one[0], one[1], m[0], m[1], maxX, maxY)
+			if err != nil {
+				continue
+			}
+
+			antiNodes = append(antiNodes, coords)
+			one = m
+			m = coords
+		}
 	}
 
 	return antiNodes
@@ -100,16 +153,19 @@ func main() {
 	}
 	raw := string(r)
 
+	// step1
 	//raw = "............\n........0...\n.....0......\n.......0....\n....0.......\n......A.....\n............\n............\n........A...\n.........A..\n............\n............"
-
 	//raw = "..........\n..........\n..........\n....a.....\n........a.\n.....a....\n..........\n......A...\n..........\n.........."
+	// w/harmonics
+	//raw = "T.........\n...T......\n.T........\n..........\n..........\n..........\n..........\n..........\n..........\n.........."
 
 	area := getArea(raw)
 	antennas := getAntennas(area)
 
 	groups := getAntennaGroups(antennas)
 	pairs := getAntennaPairs(groups)
-	antinodes := getAntiNodes(pairs)
+	//antinodes := getAntiNodes(pairs)
+	antinodes := getAntiNodesAndHarmonics(pairs, len(area[0]), len(area))
 
 	fmt.Println("area")
 	for _, a := range area {
@@ -167,4 +223,6 @@ func main() {
 	}
 
 	fmt.Println("antinodesInArea:", len(antinodesInArea))
+
+	fmt.Println()
 }

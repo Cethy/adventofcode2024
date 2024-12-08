@@ -33,4 +33,4 @@
 
 ## Day 8
 - [x] Part 1
-- [ ] Part 2
+- [x] Part 2
