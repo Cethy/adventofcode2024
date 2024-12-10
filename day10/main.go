@@ -109,6 +109,10 @@ func main() {
 	//raw = "10..9..\n2...8..\n3...7..\n4567654\n...8..3\n...9..2\n.....01"
 	//raw = "89010123\n78121874\n87430965\n96549874\n45678903\n32019012\n01329801\n10456732"
 
+	//raw = ".....0.\n..4321.\n..5..2.\n..6543.\n..7..4.\n..8765.\n..9...."
+	//raw = "..90..9\n...1.98\n...2..7\n6543456\n765.987\n876....\n987...."
+	//raw = "012345\n123456\n234567\n345678\n4.6789\n56789."
+
 	area := generateArea(raw)
 
 	for _, l := range area {
@@ -125,6 +129,7 @@ func main() {
 		trailsTree = append(trailsTree, buildPathTreeLeafs(area, coords[0], coords[1]))
 	}
 
+	// all path to any summit
 	var pathsToSummit [][][2]int
 	for _, b := range trailsTree {
 		tmp := explorePaths(b)
@@ -134,6 +139,7 @@ func main() {
 			}
 		}
 	}
+
 	// trailheads to unique summits
 	trailheadsToSummits := make([][][2][2]int, len(trailheads))
 	for i, th := range trailheads {
@@ -152,4 +158,7 @@ func main() {
 		score += len(trailheadsToSummits[i])
 	}
 	fmt.Println("score", score)
+
+	// rating
+	fmt.Println("rating", len(pathsToSummit))
 }
