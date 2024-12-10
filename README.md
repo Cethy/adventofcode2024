@@ -37,4 +37,8 @@
 
 ## Day 9
 - [x] Part 1
+- [x] Part 2
+
+## Day 10
+- [x] Part 1
 - [ ] Part 2
