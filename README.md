@@ -41,4 +41,12 @@
 
 ## Day 10
 - [x] Part 1
+- [x] Part 2
+
+## Day 11
+- [x] Part 1
+- [ ] Part 2
+
+## Day 12
+- [x] Part 1
 - [ ] Part 2
