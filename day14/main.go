@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -136,6 +137,30 @@ func moveBots(bots []Robot, w, h, times int) []Robot {
 	return movedBots
 }
 
+func lookForYNeighbor(x, y int, bots []Robot) (Robot, error) {
+	for _, bot := range bots {
+		if y == bot.position[1] && x == bot.position[0]+1 {
+			return bot, nil
+		}
+	}
+	return Robot{}, errors.New("not found")
+}
+func lookForBotAlignment(bots []Robot) int {
+	biggestAlignment := 1
+	for _, bot := range bots {
+		currAlignment := 0
+		var err error
+		for err == nil {
+			currAlignment++
+			bot, err = lookForYNeighbor(bot.position[0], bot.position[1], bots)
+		}
+		if currAlignment > biggestAlignment {
+			biggestAlignment = currAlignment
+		}
+	}
+	return biggestAlignment
+}
+
 func main() {
 	r, err := os.ReadFile("./input.txt")
 	if err != nil {
@@ -154,16 +179,8 @@ func main() {
 	w := 101 //11
 	h := 103 //7
 	var movedBots []Robot
-	/*
-		for i := 0; i <= 100; i++ {
-			movedBots = moveBots(bots, w, h, i)
-			fmt.Println(renderMap(w, h, movedBots))
-		}
-		fmt.Println(renderMap(w, h, movedBots) == "......2..1.\n...........\n1..........\n.11........\n.....1.....\n...12......\n.1....1....\n")
-
-		fmt.Println(renderMapWOQuadrant(w, h, movedBots))
-	*/
 	movedBots = moveBots(bots, w, h, 100)
+	//fmt.Println(renderMapWOQuadrant(w, h, movedBots))
 
 	botCounts := getQuadrantBotCounts(w, h, movedBots)
 	safetyFactor := 1
@@ -172,4 +189,16 @@ func main() {
 	}
 
 	fmt.Println("safety factor:", safetyFactor)
+
+	movedBots = readInput(raw)
+	someBotsAreAlignedMore20times := false
+
+	// run forever until we found a time where some bots are suspiciously well aligned
+	for i := 0; !someBotsAreAlignedMore20times; i++ {
+		movedBots = moveBots(bots, w, h, i)
+		if lookForBotAlignment(movedBots) > 20 {
+			fmt.Println(renderMap(w, h, movedBots))
+			someBotsAreAlignedMore20times = true
+		}
+	}
 }
