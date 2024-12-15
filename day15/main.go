@@ -1,22 +1,52 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 )
 
-func readInput(raw string) ([][]string, []string) {
-	ra := strings.Split(raw, "\n\n")
+func widerArea(rawArea string) [][]string {
 	var area [][]string
-	var instructions []string
-	for _, line := range strings.Split(ra[0], "\n") {
+
+	for _, line := range strings.Split(rawArea, "\n") {
 		var l []string
 		for _, cell := range line {
-			l = append(l, string(cell))
+			c := string(cell)
+			if c == "@" {
+				l = append(l, "@", ".")
+				continue
+			}
+			if c == "O" {
+				l = append(l, "[", "]")
+				continue
+			}
+			l = append(l, c, c)
 		}
 		area = append(area, l)
 	}
+
+	return area
+}
+
+func readInput(raw string, wide bool) ([][]string, []string) {
+	ra := strings.Split(raw, "\n\n")
+	var area [][]string
+	var instructions []string
+	if wide {
+		area = widerArea(ra[0])
+	} else {
+		for _, line := range strings.Split(ra[0], "\n") {
+			var l []string
+			for _, cell := range line {
+				l = append(l, string(cell))
+			}
+			area = append(area, l)
+		}
+	}
+
 	for _, i := range strings.Replace(ra[1], "\n", "", -1) {
 		instructions = append(instructions, string(i))
 	}
@@ -24,13 +54,15 @@ func readInput(raw string) ([][]string, []string) {
 	return area, instructions
 }
 
-func displayMap(area [][]string) {
+func renderMap(area [][]string) string {
+	var o string
 	for _, line := range area {
 		for _, cell := range line {
-			fmt.Print(cell)
+			o += cell
 		}
-		fmt.Println()
+		o += "\n"
 	}
+	return o
 }
 
 func findBotPos(area [][]string) [2]int {
@@ -44,7 +76,7 @@ func findBotPos(area [][]string) [2]int {
 	return [2]int{-1, -1}
 }
 
-func mBot(area [][]string, vector [2]int /*, limit [2]int*/) [][]string {
+func mBot(area [][]string, vector [2]int) [][]string {
 	botPos := findBotPos(area)
 
 	nextPos := [2]int{botPos[0] + vector[0], botPos[1] + vector[1]}
@@ -60,9 +92,9 @@ func mBot(area [][]string, vector [2]int /*, limit [2]int*/) [][]string {
 		// stay in place
 		return area
 	}
-	// box
-	if area[nextPos[1]][nextPos[0]] == "O" {
-		//firstBoxPos := [2]int{nextPos[0], nextPos[1]}
+	// box or wide box
+	if area[nextPos[1]][nextPos[0]] == "O" ||
+		area[nextPos[1]][nextPos[0]] == "[" || area[nextPos[1]][nextPos[0]] == "]" {
 		// look for some empty pos after the box
 		firstEmptySpacePos := [2]int{-1, -1}
 	mainLoop:
@@ -103,19 +135,131 @@ func mBot(area [][]string, vector [2]int /*, limit [2]int*/) [][]string {
 	return area
 }
 
-func moveBot(area [][]string, instruction string) [][]string {
-	switch instruction {
-	case "^":
-		return mBot(area, [2]int{0, -1})
-	case ">":
-		return mBot(area, [2]int{1, 0})
-	case "v":
-		return mBot(area, [2]int{0, 1})
-	case "<":
-		return mBot(area, [2]int{-1, 0})
+func allMoveableBoxes(area [][]string, vector [2]int, boxSidesCoords [][2]int) ([][2]int, error) {
+	//var o [][2]int
+	// add boxes sides if any missed
+	// and remove "." ? why is there any in the first place ?
+	for _, coords := range boxSidesCoords {
+		v := area[coords[1]][coords[0]]
+		if v == "[" {
+			if !slices.Contains(boxSidesCoords, [2]int{coords[0] + 1, coords[1]}) {
+				boxSidesCoords = append(boxSidesCoords, [2]int{coords[0] + 1, coords[1]})
+			}
+		}
+		if v == "]" {
+			if !slices.Contains(boxSidesCoords, [2]int{coords[0] - 1, coords[1]}) {
+				boxSidesCoords = append(boxSidesCoords, [2]int{coords[0] - 1, coords[1]})
+			}
+		}
+	}
+
+	var nextPosValues []string
+	for _, coords := range boxSidesCoords {
+		nextPosValues = append(nextPosValues, area[coords[1]+vector[1]][coords[0]+vector[0]])
+	}
+	if slices.Contains(nextPosValues, "#") {
+		// cant move
+		return boxSidesCoords, errors.New("cant move")
+	}
+	if slices.Contains(nextPosValues, "[") || slices.Contains(nextPosValues, "]") {
+		var nextBoxesPos [][2]int
+		for _, coords := range boxSidesCoords {
+			if slices.Contains([]string{"[", "]"}, area[coords[1]][coords[0]]) {
+				nextPos := [2]int{coords[0] + vector[0], coords[1] + vector[1]}
+				if area[nextPos[1]][nextPos[0]] == "." {
+					continue
+				}
+				nextBoxesPos = append(nextBoxesPos, nextPos)
+			}
+		}
+
+		nBoxSidesCoords, err := allMoveableBoxes(area, vector, nextBoxesPos)
+		if err != nil {
+			return boxSidesCoords, err
+		}
+		return append(boxSidesCoords, nBoxSidesCoords...), nil
+	}
+	return boxSidesCoords, nil
+}
+
+func mBotWide(area [][]string, vector [2]int) [][]string {
+	botPos := findBotPos(area)
+
+	nextPos := [2]int{botPos[0] + vector[0], botPos[1] + vector[1]}
+
+	// if nextPos not an obstacle
+	if area[nextPos[1]][nextPos[0]] != "[" && area[nextPos[1]][nextPos[0]] != "]" {
+		return mBot(area, vector)
+	}
+
+	// simple case, going < or >
+	if vector[0] != 0 {
+		// needs only 1 space
+		firstEmptySpacePos := [2]int{-1, -1}
+		for x := nextPos[0]; x > 0 && x < len(area[0]); x = x + vector[0] {
+			// no empty space: bot not moving
+			if area[nextPos[1]][x] == "#" {
+				return area
+			}
+			// empty space found: bot not moving
+			if area[nextPos[1]][x] == "." {
+				firstEmptySpacePos = [2]int{x, nextPos[1]}
+				break
+			}
+		}
+
+		// move boxes
+		for i := abs(nextPos[0] - firstEmptySpacePos[0]); i > 0; i-- {
+			area[nextPos[1]][nextPos[0]+i*vector[0]] = area[nextPos[1]][nextPos[0]+i*vector[0]-1*vector[0]]
+		}
+		area[nextPos[1]][nextPos[0]] = "."
+		// move bot
+		area[nextPos[1]][nextPos[0]], area[botPos[1]][botPos[0]] = area[botPos[1]][botPos[0]], area[nextPos[1]][nextPos[0]]
+	} else {
+		// complex case, when bot going ^ or v
+		// needs <= 2*n empty spaces on last row where n is nb of boxes involved on the last row
+
+		boxSidesCoords, err := allMoveableBoxes(area, vector, [][2]int{nextPos})
+		if err != nil {
+			return area
+		}
+
+		// move boxes
+		slices.Reverse(boxSidesCoords)
+		for _, coords := range boxSidesCoords {
+			area[coords[1]+vector[1]][coords[0]+vector[0]], area[coords[1]][coords[0]] = area[coords[1]][coords[0]], area[coords[1]+vector[1]][coords[0]+vector[0]]
+		}
+		// move bot
+		area[nextPos[1]][nextPos[0]], area[botPos[1]][botPos[0]] = area[botPos[1]][botPos[0]], area[nextPos[1]][nextPos[0]]
 	}
 
 	return area
+}
+
+func abs(a int) int {
+	if a < 0 {
+		return -a
+	}
+	return a
+}
+
+func moveBot(area [][]string, instruction string, wide bool) [][]string {
+	var vector [2]int
+	switch instruction {
+	case "^":
+		vector = [2]int{0, -1}
+	case ">":
+		vector = [2]int{1, 0}
+	case "v":
+		vector = [2]int{0, 1}
+	case "<":
+		vector = [2]int{-1, 0}
+	}
+
+	if wide {
+		return mBotWide(area, vector)
+	}
+	return mBot(area, vector)
 }
 
 func main() {
@@ -131,18 +275,30 @@ func main() {
 	//raw = "########\n#@.O.O.#\n##..O..#\n#...O..#\n#.#.O..#\n#...O..#\n#......#\n########\n\n>>>>"
 	//raw = "########\n#..O.O@#\n##..O..#\n#...O..#\n#.#.O..#\n#...O..#\n#......#\n########\n\n<<<<"
 	//raw = "########\n#..O@O.#\n##..O..#\n#...O..#\n#.#.O..#\n#...O..#\n#......#\n########\n\nvvvvv"
+	//raw = "#######\n#...#.#\n#.....#\n#..OO@#\n#..O..#\n#.....#\n#######\n\n<vv<<^^<<^^"
+	//raw = "#######\n#...#.#\n#.....#\n#..OO@#\n#..O..#\n#.....#\n#######\n\n<"
+	//raw = "#######\n#..OO@#\n#..O..#\n#.....#\n#######\n\n<<<<<<<<"
+	//raw = "#######\n#...#.#\n#.....#\n#..OO@#\n#..O..#\n#.....#\n#######\n\nv<^^^"
+	//raw = "#######\n#...#.#\n#.....#\n#.@OO.#\n#..O..#\n#.....#\n#######\n\n>>>>"
+	//raw = "#######\n#...#.#\n#.....#\n#..OO@#\n#..O..#\n#.....#\n#######\n\n<<<<<"
+	//raw = "#######\n#...#.#\n#.....#\n#..O..#\n#..OO@#\n#.....#\n#.....#\n#######\n\n<^^<<vvvvvv"
 
-	area, instructions := readInput(raw)
+	//raw = "################\n#..............#\n#.....O........#\n#.....OO@......#\n#....O.O.......#\n#..............#\n#..............#\n#..............#\n################\n\n<^^<<vvvv"
+	//raw = "################\n#..............#\n#.....O........#\n#.....OO@......#\n#....O.O.......#\n#..............#\n#.....O........#\n#..............#\n#..............#\n#..............#\n################\n\n<^^<<vvvv"
+	//raw = "################\n#..............#\n#.....O........#\n#.....OO@......#\n#....O.O.......#\n#..............#\n#.....#........#\n#..............#\n#..............#\n#..............#\n################\n\n<^^<<vvvv"
+	area, instructions := readInput(raw, false)
 
-	displayMap(area)
+	//fmt.Println(renderMap(area))
 
 	var nArea [][]string
+
 	for _, instruction := range instructions {
-		nArea = moveBot(area, instruction)
+		nArea = moveBot(area, instruction, false)
 		//fmt.Println(instruction)
-		//displayMap(nArea)
+		//fmt.Println(renderMap(nArea))
 		//fmt.Println()
 	}
+	fmt.Println(renderMap(nArea))
 
 	var sumGPS int
 	for y, line := range nArea {
@@ -154,4 +310,30 @@ func main() {
 	}
 
 	fmt.Println("GPS:", sumGPS)
+	fmt.Println()
+
+	area, instructions = readInput(raw, true)
+
+	//fmt.Print("\033[2J") // clear screen
+	for _, instruction := range instructions {
+		nArea = moveBot(area, instruction, true)
+		//fmt.Print("\033[H") // move cursor to top-left corner
+		//fmt.Println(instruction)
+		//fmt.Println(renderMap(nArea))
+		//fmt.Println()
+		//time.Sleep(1 * time.Second / 100)
+	}
+	//os.Exit(0)
+	fmt.Println(renderMap(nArea))
+
+	sumGPS = 0
+	for y, line := range nArea {
+		for x, cell := range line {
+			if cell == "[" {
+				sumGPS += x + y*100
+			}
+		}
+	}
+
+	fmt.Println("GPSwide:", sumGPS)
 }
